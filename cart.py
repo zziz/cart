@@ -1,0 +1,208 @@
+import numpy as np
+
+class CART(object):
+    def __init__(self, tree = 'cls', criterion = 'gini', prune = 'depth', max_depth = 4, min_criterion = 0.05):
+        self.feature = None
+        self.label = None
+        self.n_samples = None
+        self.gain = None
+        self.left = None
+        self.right = None
+        self.threshold = None
+        self.depth = 0
+
+        self.root = None
+        self.criterion = criterion
+        self.prune = prune
+        self.max_depth = max_depth
+        self.min_criterion = min_criterion
+        self.tree = tree
+
+    def fit(self, features, target):
+        self.root = CART()
+        if(self.tree == 'cls'):
+         self.root._grow_tree(features, target, self.criterion)
+        else:
+         self.root._grow_tree(features, target, 'mse')
+        self.root._prune(self.prune, self.max_depth, self.min_criterion, self.root.n_samples)
+
+    def predict(self, features):
+        return np.array([self.root._predict(f) for f in features])
+
+    def print_tree(self):
+        self.root._show_tree(0, ' ')
+
+    def _grow_tree(self, features, target, criterion=None):
+        if criterion is None:
+            criterion = 'gini'
+
+        self.n_samples = features.shape[0] 
+
+        if len(np.unique(target)) == 1:
+            self.label = target[0]
+            return
+
+        best_gain = 0.0
+        best_feature = None
+        best_threshold = None
+
+        if criterion in {'gini', 'entropy'}:
+            self.label = max([(c, len(target[target == c])) for c in np.unique(target)], key = lambda x : x[1])[0]
+        else:
+            self.label = np.mean(target)
+
+        impurity_node = self._calc_impurity(criterion, target)
+        
+        for col in range(features.shape[1]):
+            feature_level = np.unique(features[:,col])
+            thresholds = (feature_level[:-1] + feature_level[1:]) / 2.0
+
+            for threshold in thresholds:
+                target_l = target[features[:,col] <= threshold]
+                impurity_l = self._calc_impurity(criterion, target_l)
+                n_l = float(target_l.shape[0]) / self.n_samples
+
+                target_r = target[features[:,col] > threshold]
+                impurity_r = self._calc_impurity(criterion, target_r)
+                n_r = float(target_r.shape[0]) / self.n_samples
+
+                ig = impurity_node - (n_l * impurity_l + n_r * impurity_r)
+
+                if ig > best_gain:
+                    best_gain = ig
+                    best_feature = col
+                    best_threshold = threshold
+
+        self.feature = best_feature
+        self.gain = best_gain
+        self.threshold = best_threshold
+        self._divide_tree(features, target, criterion)
+
+    def _divide_tree(self, features, target, criterion):
+        features_l = features[features[:, self.feature] <= self.threshold]
+        target_l = target[features[:, self.feature] <= self.threshold]
+        self.left = CART()
+        self.left.depth = self.depth + 1
+        self.left._grow_tree(features_l, target_l, criterion)
+
+        features_r = features[features[:, self.feature] > self.threshold]
+        target_r = target[features[:, self.feature] > self.threshold]
+        self.right = CART()
+        self.right.depth = self.depth + 1
+        self.right._grow_tree(features_r, target_r, criterion)
+
+    def _calc_impurity(self, criterion, target):
+        c = np.unique(target)
+        s = target.shape[0] 
+
+        if criterion == 'gini':
+            return self._gini(target, c, s)
+        elif criterion == 'mse':
+            return self._mse(target)
+        else:
+            return self._entropy(target, c, s)
+
+    def _gini(self, target, n_classes, n_samples):
+        gini_index = 1.0
+        gini_index -= sum([(float(len(target[target==c])) / float(n_samples)) ** 2.0 for c in n_classes])
+        return gini_index
+
+    def _entropy(self, target, n_classes, n_samples):
+        entropy = 0.0
+
+        for c in n_classes:
+            p = float(len(target[target==c])) / n_samples
+            if p > 0.0:
+                entropy -= p * np.log2(p)
+        return entropy
+
+    def _mse(self, target):
+        y_hat = np.mean(target)
+        return np.mean((target - y_hat) ** 2.0)
+
+    def _prune(self, method, max_depth, min_criterion, n_samples):
+        if self.feature == None:
+            return
+
+        self.left._prune(method, max_depth, min_criterion, n_samples)
+        self.right._prune(method, max_depth, min_criterion, n_samples)
+
+        pruning = False
+
+        if method == 'impurity' and self.left.feature == None and self.right.feature == None: 
+            if (self.gain * float(self.n_samples) / n_samples) < min_criterion:
+                pruning = True
+        elif method == 'depth' and self.depth >= max_depth:
+            pruning = True
+
+        if pruning is True:
+            self.left = None
+            self.right = None
+            self.feature = None
+
+    def _predict(self, d):
+        if self.feature != None:
+            if d[self.feature] <= self.threshold:
+                return self.left._predict(d)
+            else:
+                return self.right._predict(d)
+        else: 
+            return self.label
+
+    def _show_tree(self, depth, cond):
+        base = '    ' * depth + cond
+        if self.feature != None:
+            print(base + 'if X[' + str(self.feature) + '] <= ' + str(self.threshold))
+            self.left._show_tree(depth+1, 'then ')
+            self.right._show_tree(depth+1, 'else ')
+        else:
+            print(base + '{value: ' + str(self.label) + ', samples: ' + str(self.n_samples) + '}')
+
+
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
+from sklearn import tree as sktree
+
+def classification_example():
+    print('\n\nClassification Tree')
+    iris = load_iris()
+    X, y = iris.data, iris.target
+    X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=42)
+
+    cls = CART(tree = 'cls', criterion='entropy', prune='depth', max_depth=3)
+    cls.fit(X_train, y_train)
+    cls.print_tree()
+
+    pred = cls.predict(X_test)
+    print("This Classification Tree Prediction Accuracy:    {}".format(sum(pred == y_test) / len(pred)))
+
+    clf = sktree.DecisionTreeClassifier(criterion = 'entropy')
+    clf = clf.fit(X_train, y_train)
+    sk_pred = clf.predict(X_test)
+
+    print("Sklearn Library Tree Prediction Accuracy:        {}".format(sum(sk_pred == y_test) / len(pred)))
+
+
+
+def regression_example():
+    print('\n\nRegression Tree')
+    rng = np.random.RandomState(1)
+    X = np.sort(5 * rng.rand(80, 1), axis=0)
+    y = np.sin(X).ravel()
+    y[::5] += 3 * (0.5 - rng.rand(16))
+
+    # Fit regression model
+    reg = CART(tree = 'reg', criterion='mse', prune='depth', max_depth=2)
+    reg.fit(X, y)
+    reg.print_tree()
+
+    pred = reg.predict(np.sort(5 * rng.rand(1, 1), axis=0))
+    print('This Regression Tree Prediction:            {}'.format(pred))
+
+    sk_reg = sktree.DecisionTreeRegressor(max_depth = 3)
+    sk_reg.fit(X, y)
+    sk_pred = sk_reg.predict(np.sort(5 * rng.rand(1, 1), axis=0))
+    print('Sklearn Library Regression Tree Prediction: {}'.format(pred))
+
+classification_example()
+regression_example()
