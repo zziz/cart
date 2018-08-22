@@ -32,10 +32,7 @@ class CART(object):
     def print_tree(self):
         self.root._show_tree(0, ' ')
 
-    def _grow_tree(self, features, target, criterion=None):
-        if criterion is None:
-            criterion = 'gini'
-
+    def _grow_tree(self, features, target, criterion = 'gini'):
         self.n_samples = features.shape[0] 
 
         if len(np.unique(target)) == 1:
@@ -66,19 +63,18 @@ class CART(object):
                 impurity_r = self._calc_impurity(criterion, target_r)
                 n_r = float(target_r.shape[0]) / self.n_samples
 
-                ig = impurity_node - (n_l * impurity_l + n_r * impurity_r)
-
-                if ig > best_gain:
-                    best_gain = ig
+                impurity_gain = impurity_node - (n_l * impurity_l + n_r * impurity_r)
+                if impurity_gain > best_gain:
+                    best_gain = impurity_gain
                     best_feature = col
                     best_threshold = threshold
 
         self.feature = best_feature
         self.gain = best_gain
         self.threshold = best_threshold
-        self._divide_tree(features, target, criterion)
+        self._split_tree(features, target, criterion)
 
-    def _divide_tree(self, features, target, criterion):
+    def _split_tree(self, features, target, criterion):
         features_l = features[features[:, self.feature] <= self.threshold]
         target_l = target[features[:, self.feature] <= self.threshold]
         self.left = CART()
@@ -92,33 +88,17 @@ class CART(object):
         self.right._grow_tree(features_r, target_r, criterion)
 
     def _calc_impurity(self, criterion, target):
-        c = np.unique(target)
-        s = target.shape[0] 
-
         if criterion == 'gini':
-            return self._gini(target, c, s)
+            return 1.0 - sum([(float(len(target[target == c])) / float(target.shape[0])) ** 2.0 for c in np.unique(target)])
         elif criterion == 'mse':
-            return self._mse(target)
+            return np.mean((target - np.mean(target)) ** 2.0)
         else:
-            return self._entropy(target, c, s)
-
-    def _gini(self, target, n_classes, n_samples):
-        gini_index = 1.0
-        gini_index -= sum([(float(len(target[target==c])) / float(n_samples)) ** 2.0 for c in n_classes])
-        return gini_index
-
-    def _entropy(self, target, n_classes, n_samples):
-        entropy = 0.0
-
-        for c in n_classes:
-            p = float(len(target[target==c])) / n_samples
-            if p > 0.0:
-                entropy -= p * np.log2(p)
-        return entropy
-
-    def _mse(self, target):
-        y_hat = np.mean(target)
-        return np.mean((target - y_hat) ** 2.0)
+            entropy = 0.0
+            for c in np.unique(target):
+                p = float(len(target[target == c])) / target.shape[0]
+                if p > 0.0:
+                    entropy -= p * np.log2(p)
+            return entropy            
 
     def _prune(self, method, max_depth, min_criterion, n_samples):
         if self.feature == None:
@@ -158,7 +138,6 @@ class CART(object):
         else:
             print(base + '{value: ' + str(self.label) + ', samples: ' + str(self.n_samples) + '}')
 
-
 from sklearn.datasets import load_iris
 from sklearn.model_selection import train_test_split
 from sklearn import tree as sktree
@@ -167,9 +146,9 @@ def classification_example():
     print('\n\nClassification Tree')
     iris = load_iris()
     X, y = iris.data, iris.target
-    X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, random_state = 42)
 
-    cls = CART(tree = 'cls', criterion='entropy', prune='depth', max_depth=3)
+    cls = CART(tree = 'cls', criterion = 'entropy', prune = 'depth', max_depth = 3)
     cls.fit(X_train, y_train)
     cls.print_tree()
 
@@ -182,26 +161,24 @@ def classification_example():
 
     print("Sklearn Library Tree Prediction Accuracy:        {}".format(sum(sk_pred == y_test) / len(pred)))
 
-
-
 def regression_example():
     print('\n\nRegression Tree')
     rng = np.random.RandomState(1)
-    X = np.sort(5 * rng.rand(80, 1), axis=0)
+    X = np.sort(5 * rng.rand(80, 1), axis = 0)
     y = np.sin(X).ravel()
     y[::5] += 3 * (0.5 - rng.rand(16))
 
     # Fit regression model
-    reg = CART(tree = 'reg', criterion='mse', prune='depth', max_depth=2)
+    reg = CART(tree = 'reg', criterion = 'mse', prune = 'depth', max_depth = 2)
     reg.fit(X, y)
     reg.print_tree()
 
-    pred = reg.predict(np.sort(5 * rng.rand(1, 1), axis=0))
+    pred = reg.predict(np.sort(5 * rng.rand(1, 1), axis = 0))
     print('This Regression Tree Prediction:            {}'.format(pred))
 
     sk_reg = sktree.DecisionTreeRegressor(max_depth = 3)
     sk_reg.fit(X, y)
-    sk_pred = sk_reg.predict(np.sort(5 * rng.rand(1, 1), axis=0))
+    sk_pred = sk_reg.predict(np.sort(5 * rng.rand(1, 1), axis = 0))
     print('Sklearn Library Regression Tree Prediction: {}'.format(pred))
 
 classification_example()
