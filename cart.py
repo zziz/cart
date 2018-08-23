@@ -21,9 +21,9 @@ class CART(object):
     def fit(self, features, target):
         self.root = CART()
         if(self.tree == 'cls'):
-         self.root._grow_tree(features, target, self.criterion)
+            self.root._grow_tree(features, target, self.criterion)
         else:
-         self.root._grow_tree(features, target, 'mse')
+            self.root._grow_tree(features, target, 'mse')
         self.root._prune(self.prune, self.max_depth, self.min_criterion, self.root.n_samples)
 
     def predict(self, features):
@@ -101,7 +101,7 @@ class CART(object):
             return entropy            
 
     def _prune(self, method, max_depth, min_criterion, n_samples):
-        if self.feature == None:
+        if self.feature is None:
             return
 
         self.left._prune(method, max_depth, min_criterion, n_samples)
@@ -109,7 +109,7 @@ class CART(object):
 
         pruning = False
 
-        if method == 'impurity' and self.left.feature == None and self.right.feature == None: 
+        if method == 'impurity' and self.left.feature is None and self.right.feature is None: 
             if (self.gain * float(self.n_samples) / n_samples) < min_criterion:
                 pruning = True
         elif method == 'depth' and self.depth >= max_depth:
@@ -179,7 +179,7 @@ def regression_example():
     sk_reg = sktree.DecisionTreeRegressor(max_depth = 3)
     sk_reg.fit(X, y)
     sk_pred = sk_reg.predict(np.sort(5 * rng.rand(1, 1), axis = 0))
-    print('Sklearn Library Regression Tree Prediction: {}'.format(pred))
+    print('Sklearn Library Regression Tree Prediction: {}'.format(sk_pred))
 
 classification_example()
 regression_example()
